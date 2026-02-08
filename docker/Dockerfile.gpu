@@ -1,0 +1,63 @@
+# ============================
+# Single Stage Runtime (CUDA 12.4)
+# ============================
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /workspace
+
+# Runtime deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    build-essential \
+    curl git rsync ca-certificates \
+    ffmpeg jq wget iproute2 \
+    openssh-client openssh-server \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python 3.11
+RUN add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y python3.11 python3.11-dev python3.11-distutils && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && \
+    curl -LsSf https://bootstrap.pypa.io/get-pip.py | python3.11
+
+# uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    ln -s /root/.local/bin/uv /usr/local/bin/uv
+
+# CUDA 12.4 対応 torch を明示インストール
+RUN uv pip install --system \
+    torch==2.5.1 \
+    torchvision==0.20.1 \
+    torchaudio==2.5.1 \
+    --index-url https://download.pytorch.org/whl/cu124
+
+# Install requirements
+COPY docker/requirements.txt /workspace/requirements.txt
+RUN uv pip install --system -r /workspace/requirements.txt
+
+# Ray (fixed) 
+RUN pip install --no-cache-dir ray[default]==2.11.0
+
+# SSH
+RUN mkdir /var/run/sshd && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config && \
+    echo "UseDNS no" >> /etc/ssh/sshd_config
+
+# Copy start scripts
+COPY start /usr/local/bin/start-scripts
+RUN chmod -R +x /usr/local/bin/start-scripts
+
+# Workspace
+RUN mkdir -p /workspace/{logs,code,models} \
+    /var/local/cache/project/models
+
+EXPOSE 22 6379 8265 8888 8000
+ENV PYTHONUNBUFFERED=1
+
+ENTRYPOINT ["/usr/local/bin/start-scripts/consul_leader_elect_and_run.sh"]

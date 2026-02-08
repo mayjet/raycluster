@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  consul-client:
+    image: consul:1.14
+    container_name: consul-client
+    network_mode: host
+    restart: unless-stopped
+    command: >
+      agent
+      -client=0.0.0.0
+      -bind=0.0.0.0
+      -retry-join=lyon002.cloud.cs.priv.teu.ac.jp
+      -retry-join=lyon003.cloud.cs.priv.teu.ac.jp
+
+  ray-worker:
+    image: lyon-raycluster:py311-gpu
+    container_name: ray-worker-node
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      - consul-client
+
+    environment:
+      - HEAD_MODE=false
+      - CONSUL_HTTP_ADDR=http://127.0.0.1:8500
+      - JUPYTER=no
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]

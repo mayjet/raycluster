@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  consul:
+    image: consul:1.14
+    container_name: consul-agent
+    command: >
+      agent
+      -retry-join "CONSUL_SERVER_1"
+      -retry-join "CONSUL_SERVER_2"
+      -retry-join "CONSUL_SERVER_3"
+      -client=0.0.0.0
+      -bind=0.0.0.0
+      -data-dir=/consul/data
+    volumes:
+      - consul-data:/consul/data
+    network_mode: host
+    restart: unless-stopped
+    ports:
+      - "8600:8600/udp"
+
+  raynode:
+    image: registry.example.com/project:py311-uv-gpu
+    container_name: ray-node
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - /var/local/cache/project:/var/local/cache/project
+      - /full/path/workspace:/workspace
+      - /full/path/authorized_keys:/root/.ssh/authorized_keys:ro
+    environment:
+      - HEAD_MODE=false
+      - CONSUL_HTTP_ADDR=http://127.0.0.1:8500
+      - JUPYTER=no
+
+volumes:
+  consul-data:

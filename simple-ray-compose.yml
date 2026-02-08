@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  ray-head:
+    image: lyon-raycluster:py311-gpu
+    container_name: ray-head
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ~/raycluster/workspace:/workspace
+    environment:
+      - HEAD_MODE=true
+      - JUPYTER=yes
+      - RAY_memory_monitor_refresh_ms=2500
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+    profiles:
+      - head
+
+  ray-worker:
+    image: lyon-raycluster:py311-gpu
+    container_name: ray-worker
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - RAY_HEAD_ADDRESS=10.204.227.77:6379
+      - JUPYTER=no
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+    profiles:
+      - worker

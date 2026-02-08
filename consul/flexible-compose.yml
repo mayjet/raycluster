@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  consul-server:
+    image: consul:1.14
+    container_name: consul-server
+    network_mode: host
+    restart: unless-stopped
+    command: >
+      agent
+      -server
+      -bootstrap-expect=2
+      -ui
+      -client=0.0.0.0
+      -bind=10.204.227.77
+      -retry-join=10.204.227.77
+      -retry-join=10.204.227.79
+    profiles:
+      - consul-server
+
+  consul-client:
+    image: consul:1.14
+    container_name: consul-client
+    network_mode: host
+    restart: unless-stopped
+    command: >
+      agent
+      -client=0.0.0.0
+      -bind=10.204.227.79
+      -retry-join=10.204.227.77
+      -retry-join=10.204.227.79
+    profiles:
+      - consul-client
+
+  ray-head-candidate:
+    image: lyon-raycluster:py311-gpu
+    container_name: ray-head-candidate
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ~/raycluster/workspace:/workspace
+    environment:
+      - HEAD_MODE=false
+      - CONSUL_HTTP_ADDR=http://127.0.0.1:8500
+      - JUPYTER=yes
+      - RAY_memory_monitor_refresh_ms=2500
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+    profiles:
+      - head-candidate
+
+  ray-worker:
+    image: lyon-raycluster:py311-gpu
+    container_name: ray-worker-node
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - HEAD_MODE=false
+      - CONSUL_HTTP_ADDR=http://127.0.0.1:8500
+      - JUPYTER=no
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+    profiles:
+      - worker-only
