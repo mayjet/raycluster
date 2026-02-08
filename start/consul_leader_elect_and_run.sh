@@ -6,6 +6,12 @@ HOSTNAME=$(hostname -s)
 HEAD_MODE=${HEAD_MODE:-false}
 JUPYTER=${JUPYTER:-no}
 LOCAL_IP=${RAY_NODE_IP:-}
+if [ -n "${RAY_NODE_HOSTNAME:-}" ]; then
+  LOCAL_IP=$(getent hosts "${RAY_NODE_HOSTNAME}" | awk '{print $1}' | head -n1 || true)
+  if [ -z "${LOCAL_IP}" ]; then
+    echo "Failed to resolve RAY_NODE_HOSTNAME=${RAY_NODE_HOSTNAME}, falling back to auto-detect."
+  fi
+fi
 if [ -z "${LOCAL_IP}" ]; then
   LOCAL_IP=$(ip -o -4 addr show scope global \
     | awk '$2 !~ /^(lo|docker|br-|virbr)/ {print $4}' \
