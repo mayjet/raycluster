@@ -19,8 +19,8 @@ Consul に登録し、worker が head に参加できるようにします。解
 VM ごとにホスト名が異なる場合は、起動時に環境変数で注入します。
 
 ```bash
-RAY_NODE_HOSTNAME=lyon001.cloud.cs.priv.teu.ac.jp docker compose -f consul/head-compose.yml up -d
-RAY_NODE_HOSTNAME=lyon010.cloud.cs.priv.teu.ac.jp docker compose -f consul/client-compose.yml up -d
+RAY_NODE_HOSTNAME=___.ac.jp docker compose -f consul/head-compose.yml up -d
+RAY_NODE_HOSTNAME=___.ac.jp docker compose -f consul/client-compose.yml up -d
 ```
 
 `RAY_NODE_HOSTNAME` を指定しない場合は、コンテナ内から取得した IPv4 を使って
