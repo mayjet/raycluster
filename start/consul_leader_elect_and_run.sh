@@ -5,7 +5,20 @@ CONSUL_HTTP=${CONSUL_HTTP_ADDR:-http://127.0.0.1:8500}
 HOSTNAME=$(hostname -s)
 HEAD_MODE=${HEAD_MODE:-false}
 JUPYTER=${JUPYTER:-no}
-LOCAL_IP=$(hostname -I | awk '{print $1}' || echo "127.0.0.1")
+LOCAL_IP=${RAY_NODE_IP:-}
+if [ -n "${RAY_NODE_HOSTNAME:-}" ]; then
+  LOCAL_IP=$(getent hosts "${RAY_NODE_HOSTNAME}" | awk '{print $1}' | head -n1 || true)
+  if [ -z "${LOCAL_IP}" ]; then
+    echo "Failed to resolve RAY_NODE_HOSTNAME=${RAY_NODE_HOSTNAME}, falling back to auto-detect."
+  fi
+fi
+if [ -z "${LOCAL_IP}" ]; then
+  LOCAL_IP=$(ip -o -4 addr show scope global \
+    | awk '$2 !~ /^(lo|docker|br-|virbr)/ {print $4}' \
+    | cut -d/ -f1 \
+    | head -n1)
+fi
+LOCAL_IP=${LOCAL_IP:-$(hostname -I | awk '{print $1}' || echo "127.0.0.1")}
 KV_LEADER_KEY="service/ray/leader"
 SESSION_NAME="ray-leader-session-${HOSTNAME}"
 
