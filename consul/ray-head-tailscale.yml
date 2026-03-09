@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  ray-head-candidate:
+    image: lyon-raycluster:py311-gpu
+    container_name: ray-head-candidate
+    network_mode: "service:consul-tailscale"
+    restart: unless-stopped
+    depends_on:
+      - consul-tailscale
+
+    volumes:
+      - ~/raycluster/workspace:/workspace
+
+    environment:
+      - HEAD_MODE=false  # 自動リーダー選出
+      - CONSUL_HTTP_ADDR=http://127.0.0.1:8500
+      - JUPYTER=yes
+      - RAY_memory_monitor_refresh_ms=2500
+      - RAY_NODE_HOSTNAME=${RAY_NODE_HOSTNAME:-}
+      - RAY_NODE_IP=${RAY_NODE_IP:-}
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
+
+  consul-tailscale:
+    image: tailscale/tailscale:latest
+    container_name: consul-tailscale
+    hostname: consul-${HOSTNAME:-unknown}
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+      - TS_ACCEPT_DNS=false
+    volumes:
+      - ./tailscale-state-${HOSTNAME:-unknown}:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: unless-stopped
+    command: tailscaled
+
+networks:
+  default:
+    external: true
+    name: consul-net

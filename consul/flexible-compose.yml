@@ -6,15 +6,24 @@ services:
     container_name: consul-server
     network_mode: host
     restart: unless-stopped
+    environment:
+      - CONSUL_ADVERTISE=${CONSUL_ADVERTISE:-}
     command: >
-      agent
-      -server
-      -bootstrap-expect=2
-      -ui
-      -client=0.0.0.0
-      -bind=10.204.227.77
-      -retry-join=10.204.227.77
-      -retry-join=10.204.227.79
+      /bin/sh -c '
+      if [ -z "$CONSUL_ADVERTISE" ]; then
+        echo "ERROR: CONSUL_ADVERTISE must be set" >&2;
+        exit 1;
+      fi;
+      exec consul agent
+        -server
+        -bootstrap-expect=2
+        -ui
+        -client=0.0.0.0
+        -bind=0.0.0.0
+        -advertise="$CONSUL_ADVERTISE"
+        -retry-join=lyon002.cloud.cs.priv.teu.ac.jp
+        -retry-join=lyon004.cloud.cs.priv.teu.ac.jp
+      '
     profiles:
       - consul-server
 
@@ -26,9 +35,9 @@ services:
     command: >
       agent
       -client=0.0.0.0
-      -bind=10.204.227.79
-      -retry-join=10.204.227.77
-      -retry-join=10.204.227.79
+      -bind=0.0.0.0
+      -retry-join=lyon002.cloud.cs.priv.teu.ac.jp
+      -retry-join=lyon004.cloud.cs.priv.teu.ac.jp
     profiles:
       - consul-client
 

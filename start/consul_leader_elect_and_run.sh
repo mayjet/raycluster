@@ -5,20 +5,26 @@ CONSUL_HTTP=${CONSUL_HTTP_ADDR:-http://127.0.0.1:8500}
 HOSTNAME=$(hostname -s)
 HEAD_MODE=${HEAD_MODE:-false}
 JUPYTER=${JUPYTER:-no}
+<<<<<<< ours
+<<<<<<< ours
 LOCAL_IP=${RAY_NODE_IP:-}
-if [ -n "${RAY_NODE_HOSTNAME:-}" ]; then
-  LOCAL_IP=$(getent hosts "${RAY_NODE_HOSTNAME}" | awk '{print $1}' | head -n1 || true)
-  if [ -z "${LOCAL_IP}" ]; then
-    echo "Failed to resolve RAY_NODE_HOSTNAME=${RAY_NODE_HOSTNAME}, falling back to auto-detect."
+if [ -z "${LOCAL_IP}" ] && [ -n "${RAY_NODE_HOSTNAME:-}" ]; then
+  if echo "${RAY_NODE_HOSTNAME}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+    LOCAL_IP="${RAY_NODE_HOSTNAME}"
+  else
+    LOCAL_IP=$(getent hosts "${RAY_NODE_HOSTNAME}" | awk '{print $1}' | head -n1 || true)
   fi
 fi
 if [ -z "${LOCAL_IP}" ]; then
-  LOCAL_IP=$(ip -o -4 addr show scope global \
-    | awk '$2 !~ /^(lo|docker|br-|virbr)/ {print $4}' \
-    | cut -d/ -f1 \
-    | head -n1)
+  LOCAL_IP=$(hostname -I | awk '{print $1}' || true)
 fi
-LOCAL_IP=${LOCAL_IP:-$(hostname -I | awk '{print $1}' || echo "127.0.0.1")}
+LOCAL_IP=${LOCAL_IP:-127.0.0.1}
+=======
+LOCAL_IP=$(hostname -I | awk '{print $1}' || echo "127.0.0.1")
+>>>>>>> theirs
+=======
+LOCAL_IP=$(hostname -I | awk '{print $1}' || echo "127.0.0.1")
+>>>>>>> theirs
 KV_LEADER_KEY="service/ray/leader"
 SESSION_NAME="ray-leader-session-${HOSTNAME}"
 
@@ -32,23 +38,23 @@ else
 fi
 
 create_session() {
-  curl -sS -X PUT "${CONSUL_HTTP}/v1/session/create" -d "{\"Name\":\"${SESSION_NAME}\",\"TTL\":\"20s\",\"LockDelay\":\"1s\"}" | jq -r '.ID'
+  curl -q -sS -X PUT "${CONSUL_HTTP}/v1/session/create" -d "{\"Name\":\"${SESSION_NAME}\",\"TTL\":\"20s\",\"LockDelay\":\"1s\"}" | jq -r '.ID'
 }
 
 destroy_session() {
   if [ -n "${SESSION_ID:-}" ]; then
-    curl -sS -X PUT "${CONSUL_HTTP}/v1/session/destroy/${SESSION_ID}" >/dev/null || true
+    curl -q -sS -X PUT "${CONSUL_HTTP}/v1/session/destroy/${SESSION_ID}" >/dev/null || true
   fi
 }
 
 acquire_lock() {
   local sid="$1"
-  curl -sS -X PUT "${CONSUL_HTTP}/v1/kv/${KV_LEADER_KEY}?acquire=${sid}" -d "${HOSTNAME}"
+  curl -q -sS -X PUT "${CONSUL_HTTP}/v1/kv/${KV_LEADER_KEY}?acquire=${sid}" -d "${HOSTNAME}"
 }
 
 release_lock() {
   local sid="$1"
-  curl -sS -X PUT "${CONSUL_HTTP}/v1/kv/${KV_LEADER_KEY}?release=${sid}" -d "${HOSTNAME}"
+  curl -q -sS -X PUT "${CONSUL_HTTP}/v1/kv/${KV_LEADER_KEY}?release=${sid}" -d "${HOSTNAME}"
 }
 
 # If RAY_HEAD_ADDRESS is set, connect directly to Ray head
@@ -79,7 +85,7 @@ if [ "$HEAD_MODE" = "true" ]; then
   "Tags": ["ray","head"]
 }
 EOF
-  curl -sS -X PUT "${CONSUL_HTTP}/v1/agent/service/register" -d @/tmp/ray-head-service.json || true
+  curl -q -sS -X PUT "${CONSUL_HTTP}/v1/agent/service/register" -d @/tmp/ray-head-service.json || true
   if [ "$JUPYTER" = "yes" ]; then
     mkdir -p /workspace/logs
     nohup jupyter lab --ip=0.0.0.0 --allow-root --NotebookApp.token='' --NotebookApp.password='' > /workspace/logs/jupyter.log 2>&1 &
@@ -107,7 +113,7 @@ while true; do
   "Tags": ["ray","head"]
 }
 EOF
-    curl -sS -X PUT "${CONSUL_HTTP}/v1/agent/service/register" -d @/tmp/ray-head-service.json || true
+    curl -q -sS -X PUT "${CONSUL_HTTP}/v1/agent/service/register" -d @/tmp/ray-head-service.json || true
 
     if [ "$JUPYTER" = "yes" ]; then
       mkdir -p /workspace/logs
@@ -116,17 +122,17 @@ EOF
 
     # keep session alive (renew)
     while true; do
-      curl -sS -X PUT "${CONSUL_HTTP}/v1/session/renew/${SESSION_ID}" >/dev/null 2>&1 || break
+      curl -q -sS -X PUT "${CONSUL_HTTP}/v1/session/renew/${SESSION_ID}" >/dev/null 2>&1 || break
       sleep 5
     done
 
     echo "Leadership lost; deregistering"
-    curl -sS -X PUT "${CONSUL_HTTP}/v1/agent/service/deregister/ray-head-${HOSTNAME}" || true
+    curl -q -sS -X PUT "${CONSUL_HTTP}/v1/agent/service/deregister/ray-head-${HOSTNAME}" || true
     destroy_session || true
   else
     destroy_session || true
     # find current leader via catalog service
-    svc=$(curl -sS "${CONSUL_HTTP}/v1/catalog/service/ray-head" || true)
+    svc=$(curl -q -sS "${CONSUL_HTTP}/v1/catalog/service/ray-head" || true)
     ip=$(echo "$svc" | jq -r '.[0].ServiceAddress // .[0].Address' 2>/dev/null || true)
     if [ -n "$ip" ] && [ "$ip" != "null" ]; then
       echo "Joining head at ${ip}"

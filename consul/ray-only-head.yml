@@ -4,9 +4,8 @@ services:
   ray-head-candidate:
     image: ${RAY_IMAGE:-lyon-raycluster:py311-gpu}
     container_name: ${RAY_CONTAINER_NAME:-ray-head-candidate}
-    network_mode: host
+    network_mode: "container:consul-tailscale"
     restart: unless-stopped
-
     volumes:
       - ${RAY_WORKSPACE_PATH:-~/raycluster/workspace}:/workspace
 
@@ -15,7 +14,6 @@ services:
       - CONSUL_HTTP_ADDR=http://127.0.0.1:8500
       - JUPYTER=yes
       - RAY_memory_monitor_refresh_ms=2500
-
       - RAY_NODE_HOSTNAME=${RAY_NODE_HOSTNAME:-SET_VPN_HOSTNAME}
       - RAY_NODE_IP=${RAY_NODE_IP:-}
 

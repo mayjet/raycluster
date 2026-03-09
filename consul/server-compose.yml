@@ -1,28 +1,64 @@
 version: '3.8'
 
 services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: consul-tailscale
+    hostname: consul-${HOSTNAME:-unknown}
+    environment:
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+      - TS_ACCEPT_DNS=false
+    volumes:
+      - ./tailscale-state-${HOSTNAME:-unknown}:/var/lib/tailscale
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    restart: unless-stopped
+    networks:
+      - consul-net
+    command: tailscaled
+
   consul:
     image: consul:1.14
     container_name: consul-server
-    command: >
-      agent
-      -server
-      -bootstrap-expect=2
-      -ui
-      -client=0.0.0.0
-      -bind=0.0.0.0
-      -data-dir=/consul/data
+    depends_on:
+      - tailscale
+    network_mode: "service:tailscale"
+    environment:
+      CONSUL_BOOTSTRAP_EXPECT: ${CONSUL_BOOTSTRAP_EXPECT:-2}
+      CONSUL_RETRY_JOIN: ${CONSUL_RETRY_JOIN}
+      TAILSCALE_IP: ${TAILSCALE_IP}
+    entrypoint: []
+    command:
+      - /bin/sh
+      - -c
+      - |
+        if [ -z "$$TAILSCALE_IP" ]; then
+          echo "ERROR: TAILSCALE_IP environment variable must be set" >&2
+          exit 1
+        fi
+        
+        echo "Using Tailscale IP: $$TAILSCALE_IP"
+        
+        HOST_NAME=$$(hostname -s)
+        mkdir -p /consul/data-$$HOST_NAME
+        
+        exec /bin/consul agent \
+          -server \
+          -node="$$HOST_NAME" \
+          -bootstrap-expect="$$CONSUL_BOOTSTRAP_EXPECT" \
+          -ui \
+          -client=0.0.0.0 \
+          -bind=$$TAILSCALE_IP \
+          -advertise=$$TAILSCALE_IP \
+          $$CONSUL_RETRY_JOIN \
+          -data-dir=/consul/data-$$HOST_NAME
     volumes:
-      - consul-server-data:/consul/data
-    ports:
-      - "8500:8500"      # HTTP UI/API
-      - "8600:8600/udp"  # DNS
-      - "8300:8300"
-      - "8301:8301"
-      - "8301:8301/udp"
-      - "8302:8302"
-      - "8302:8302/udp"
+      - ./consul-data:/consul
     restart: unless-stopped
 
-volumes:
-  consul-server-data:
+networks:
+  consul-net:
+    driver: bridge

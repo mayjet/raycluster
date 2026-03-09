@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  ray-worker:
+    image: ${RAY_IMAGE:-lyon-raycluster:py311-gpu}
+    container_name: ${RAY_CONTAINER_NAME:-ray-worker-node}
+    network_mode: "container:consul-tailscale"
+    restart: unless-stopped
+
+    environment:
+      - HEAD_MODE=false
+      - CONSUL_HTTP_ADDR=http://127.0.0.1:8500
+      - JUPYTER=no
+      - RAY_NODE_HOSTNAME=${RAY_NODE_HOSTNAME:-SET_VPN_HOSTNAME}
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: ["gpu"]
